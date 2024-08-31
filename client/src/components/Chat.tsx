@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 type Message = string;
 
@@ -31,6 +31,7 @@ const Chat = () => {
   const sendMessage = () => {
     if (socket && messageInput.trim()) {
       socket.send(messageInput);
+      setMessageInput("");
     }
   };
 
