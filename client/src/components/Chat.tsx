@@ -16,9 +16,10 @@ const Chat = () => {
 
     ws.onopen = () => console.log("Connection established");
 
-    ws.onmessage = (event) =>
+    ws.onmessage = (event) => {
+      console.log(event.data);
       setMessages((prevMessages) => [...prevMessages, event.data]);
-
+    };
     ws.onclose = () => console.log("Connection closed");
 
     ws.onerror = (error) => console.log("WebSocket error:", error);
@@ -28,8 +29,11 @@ const Chat = () => {
     return () => ws.close();
   }, []);
 
+  console.log("🚀 ~ Chat ~ messages:", messages);
+
   const sendMessage = () => {
     if (socket && messageInput.trim()) {
+      console.log("🚀 ~ sendMessage ~ messageInput:", messageInput);
       socket.send(messageInput);
       setMessageInput("");
     }
