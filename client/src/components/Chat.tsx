@@ -16,10 +16,19 @@ const Chat = () => {
 
     ws.onopen = () => console.log("Connection established");
 
-    ws.onmessage = (event) => {
-      console.log(event.data);
-      setMessages((prevMessages) => [...prevMessages, event.data]);
+    ws.onmessage = (event: MessageEvent) => {
+      if (event.data instanceof Blob) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const text = reader.result as string;
+          setMessages((prevMessages) => [...prevMessages, text]);
+        };
+        reader.readAsText(event.data);
+      } else if (typeof event.data === "string") {
+        setMessages((prevMessages) => [...prevMessages, event.data]);
+      }
     };
+
     ws.onclose = () => console.log("Connection closed");
 
     ws.onerror = (error) => console.log("WebSocket error:", error);
