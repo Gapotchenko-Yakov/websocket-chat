@@ -3,6 +3,7 @@ const WebSocket = require("ws");
 const jwt = require("jsonwebtoken");
 const url = require("url");
 const express = require("express");
+const cors = require("cors");
 
 const PORT = 8080;
 const SECRET_KEY = "secret_key";
@@ -13,6 +14,9 @@ const users = {
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
+
+app.use(express.json());
+app.use(cors());
 
 const generateToken = (username) => {
   return jwt.sign({ username }, SECRET_KEY, { expiresIn: "1h" });
@@ -32,24 +36,26 @@ app.post("/login", (req, res) => {
 wss.on("connection", (ws) => {
   let userToken = null;
 
-  ws.on("message", (message) => {
-    if (typeof message === "string") {
-      const data = JSON.parse(message);
-      if (data.type === "auth") {
-        try {
-          const decoded = jwt.verify(data.token, SECRET_KEY);
-          userToken = data.token;
-          ws.send("Authenticated");
-        } catch (err) {
-          ws.send("Authentication failed");
-        }
-      } else if (userToken) {
-        wss.clients.forEach((client) => {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(message);
-          }
-        });
+  ws.on("message", (messageBuffer) => {
+    const message = messageBuffer.toString();
+
+    const data = JSON.parse(message);
+    if (data.type === "auth") {
+      try {
+        const decoded = jwt.verify(data.token, SECRET_KEY);
+        userToken = data.token;
+        console.log("Authenticated");
+        ws.send(JSON.stringify({ status: "Authenticated" }));
+      } catch (err) {
+        console.log("Authentication failed");
+        ws.send(JSON.stringify({ status: "Authentication failed" }));
       }
+    } else if (userToken) {
+      wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(message);
+        }
+      });
     }
   });
 
