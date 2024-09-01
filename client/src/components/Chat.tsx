@@ -4,7 +4,11 @@ type Message = string;
 
 let renderCounter = 0;
 
-const Chat = () => {
+interface ChatProps {
+  token: string;
+}
+
+const Chat: React.FC<ChatProps> = ({ token }) => {
   renderCounter++;
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -12,13 +16,6 @@ const Chat = () => {
   const [socket, setSocket] = useState<WebSocket | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("jwtToken");
-
-    if (!token) {
-      console.error("No JWT token found. Please login first.");
-      return;
-    }
-
     const ws = new WebSocket("ws://localhost:8080/chat");
 
     ws.onopen = () => {

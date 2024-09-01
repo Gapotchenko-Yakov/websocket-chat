@@ -1,6 +1,10 @@
 import React, { useState } from "react";
 
-const Login: React.FC = () => {
+interface LoginProps {
+  setToken: (token: string) => void;
+}
+
+const Login: React.FC<LoginProps> = ({ setToken }) => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
@@ -24,7 +28,7 @@ const Login: React.FC = () => {
 
       const token = data.token;
 
-      localStorage.setItem("jwtToken", token);
+      setToken(token);
 
       console.log("Login successful, token saved:", token);
     } catch (error) {
