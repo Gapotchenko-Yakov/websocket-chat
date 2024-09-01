@@ -1,30 +1,53 @@
 const http = require("http");
 const WebSocket = require("ws");
+const jwt = require("jsonwebtoken");
+const url = require("url");
 
-const port = 8080;
+const PORT = 8080;
 
 const server = http.createServer((req, res) => {});
 
-const wss = new WebSocket.Server({ server });
+const wss = new WebSocket.Server({ noServer: true });
 
-wss.on("connection", (ws) => {
+const SECRET_KEY = "secret_key";
+
+const authenticate = (token) => {
+  try {
+    return jwt.verify(token, SECRET_KEY);
+  } catch (error) {
+    return null;
+  }
+};
+
+wss.on("connection", (ws, req) => {
+  const token = req.headers["authorization"]?.split(" ")[1];
+
+  const user = authenticate(token);
+
+  if (!user) {
+    ws.close();
+    return;
+  }
+
   ws.on("open", () => console.log("New client"));
 
   ws.on("message", (message) => {
-    // console.log("🚀 ~ ws.on ~ event:", event);
-    // const { data: message } = event;
     console.log(`Received message: ${message}`);
 
     wss.clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
+      if (client !== ws && client.readyState === WebSocket.OPEN) {
         client.send(message);
       }
     });
   });
 
-  ws.on("close", () => console.log("Client closed"));
+  ws.on("close", () => {
+    console.log("Client disconnected");
+  });
 
   ws.on("error", (error) => console.log("WebSocket error", error));
+
+  ws.send("Welcome to the chat!");
 });
 
-server.listen(port, () => console.log(`Server is listening on port: ${port}`));
+server.listen(PORT, () => console.log(`Server is listening on PORT: ${PORT}`));
