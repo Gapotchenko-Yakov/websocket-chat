@@ -3,31 +3,53 @@ const WebSocket = require("ws");
 const jwt = require("jsonwebtoken");
 const url = require("url");
 
-const SECRET_KEY = "your_secret_key";
+const PORT = 8080;
+const SECRET_KEY = "secret_key";
 
 const server = http.createServer((req, res) => {
-  if (req.method === "POST" && req.url === "/login") {
+  // Устанавливаем заголовки CORS
+  res.setHeader("Access-Control-Allow-Origin", "*"); // Разрешаем все источники, замените '*' на нужный домен при необходимости
+  res.setHeader(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, DELETE, OPTIONS"
+  ); // Разрешаем указанные методы
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization"); // Разрешаем указанные заголовки
+
+  // Обработка preflight-запросов (OPTIONS)
+  if (req.method === "OPTIONS") {
+    res.writeHead(204); // No Content
+    res.end();
+    return;
+  }
+
+  // Логика для обработки других запросов
+  else if (req.method === "POST" && req.url === "/login") {
     let body = "";
+
     req.on("data", (chunk) => {
       body += chunk.toString();
     });
 
     req.on("end", () => {
-      const { username, password } = JSON.parse(body);
+      try {
+        const { username, password } = JSON.parse(body);
 
-      if (username === "user" && password === "password") {
-        const token = jwt.sign({ username }, SECRET_KEY, { expiresIn: "1h" });
-
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ token }));
-      } else {
-        res.writeHead(401, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Invalid credentials" }));
+        if (username === "user" && password === "1234") {
+          const token = jwt.sign({ username }, SECRET_KEY, { expiresIn: "1h" });
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ token }));
+        } else {
+          res.writeHead(401, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Invalid credentials" }));
+        }
+      } catch (err) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid request" }));
       }
     });
   } else {
-    res.writeHead(404);
-    res.end();
+    res.writeHead(404, { "Content-Type": "text/plain" });
+    res.end("Not Found");
   }
 });
 
@@ -85,6 +107,6 @@ server.on("upgrade", (request, socket, head) => {
   }
 });
 
-server.listen(8080, () => {
-  console.log("Server is running on http://localhost:8080");
+server.listen(PORT, () => {
+  console.log(`Server is running on PORT: ${PORT}`);
 });

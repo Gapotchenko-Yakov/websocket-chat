@@ -14,6 +14,8 @@ const Login: React.FC = () => {
         body: JSON.stringify({ username, password }),
       });
 
+      console.log("🚀 ~ handleLogin ~ response:", response);
+
       if (!response.ok) {
         throw new Error("Login failed");
       }

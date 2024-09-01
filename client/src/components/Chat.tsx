@@ -12,9 +12,21 @@ const Chat = () => {
   const [socket, setSocket] = useState<WebSocket | null>(null);
 
   useEffect(() => {
-    const ws = new WebSocket("ws://localhost:8080");
+    const token = localStorage.getItem("jwtToken");
 
-    ws.onopen = () => console.log("Connection established");
+    if (!token) {
+      console.error("No JWT token found. Please login first.");
+      return;
+    }
+
+    const ws = new WebSocket("ws://localhost:8080/chat");
+
+    ws.onopen = () => {
+      console.log("Connection established");
+
+      // Отправка токена через заголовок Authorization
+      ws.send(JSON.stringify({ type: "auth", token }));
+    };
 
     ws.onmessage = (event: MessageEvent) => {
       if (event.data instanceof Blob) {
@@ -25,7 +37,10 @@ const Chat = () => {
         };
         reader.readAsText(event.data);
       } else if (typeof event.data === "string") {
-        setMessages((prevMessages) => [...prevMessages, event.data]);
+        const parsedData = JSON.parse(event.data);
+        if (parsedData.type === "message") {
+          setMessages((prevMessages) => [...prevMessages, parsedData.content]);
+        }
       }
     };
 
@@ -38,12 +53,9 @@ const Chat = () => {
     return () => ws.close();
   }, []);
 
-  console.log("🚀 ~ Chat ~ messages:", messages);
-
   const sendMessage = () => {
     if (socket && messageInput.trim()) {
-      console.log("🚀 ~ sendMessage ~ messageInput:", messageInput);
-      socket.send(messageInput);
+      socket.send(JSON.stringify({ type: "message", content: messageInput }));
       setMessageInput("");
     }
   };
