@@ -3,51 +3,74 @@ const WebSocket = require("ws");
 const jwt = require("jsonwebtoken");
 const url = require("url");
 
-const PORT = 8080;
+const SECRET_KEY = "your_secret_key";
 
-const server = http.createServer((req, res) => {});
+const server = http.createServer((req, res) => {
+  if (req.method === "POST" && req.url === "/login") {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
+    });
+
+    req.on("end", () => {
+      const { username, password } = JSON.parse(body);
+
+      if (username === "user" && password === "password") {
+        const token = jwt.sign({ username }, SECRET_KEY, { expiresIn: "1h" });
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ token }));
+      } else {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid credentials" }));
+      }
+    });
+  } else {
+    res.writeHead(404);
+    res.end();
+  }
+});
 
 const wss = new WebSocket.Server({ noServer: true });
 
-const SECRET_KEY = "secret_key";
-
-const authenticate = (token) => {
-  try {
-    return jwt.verify(token, SECRET_KEY);
-  } catch (error) {
-    return null;
-  }
-};
-
-wss.on("connection", (ws, req) => {
-  const token = req.headers["authorization"]?.split(" ")[1];
-
-  const user = authenticate(token);
-
-  if (!user) {
-    ws.close();
-    return;
-  }
-
-  ws.on("open", () => console.log("New client"));
-
+wss.on("connection", (ws) => {
   ws.on("message", (message) => {
-    console.log(`Received message: ${message}`);
+    try {
+      const parsedMessage = JSON.parse(message);
+      if (parsedMessage.type === "auth") {
+        const token = parsedMessage.token;
 
-    wss.clients.forEach((client) => {
-      if (client !== ws && client.readyState === WebSocket.OPEN) {
-        client.send(message);
+        jwt.verify(token, SECRET_KEY, (err, decoded) => {
+          if (err) {
+            ws.send(
+              JSON.stringify({ type: "error", message: "Invalid token" })
+            );
+            ws.close();
+          } else {
+            ws.isAuthenticated = true;
+            ws.send(
+              JSON.stringify({ type: "success", message: "Authenticated" })
+            );
+          }
+        });
+      } else if (ws.isAuthenticated) {
+        wss.clients.forEach((client) => {
+          if (client !== ws && client.readyState === WebSocket.OPEN) {
+            client.send(
+              JSON.stringify({
+                type: "message",
+                content: parsedMessage.content,
+              })
+            );
+          }
+        });
+      } else {
+        ws.send(JSON.stringify({ type: "error", message: "Unauthorized" }));
       }
-    });
+    } catch (error) {
+      console.error("Error processing message:", error);
+    }
   });
-
-  ws.on("close", () => {
-    console.log("Client disconnected");
-  });
-
-  ws.on("error", (error) => console.log("WebSocket error", error));
-
-  ws.send("Welcome to the chat!");
 });
 
 server.on("upgrade", (request, socket, head) => {
@@ -58,8 +81,10 @@ server.on("upgrade", (request, socket, head) => {
       wss.emit("connection", ws, request);
     });
   } else {
-    socket.destroy(); // Закрываем соединение, если путь не соответствует
+    socket.destroy();
   }
 });
 
-server.listen(PORT, () => console.log(`Server is listening on PORT: ${PORT}`));
+server.listen(8080, () => {
+  console.log("Server is running on http://localhost:8080");
+});
