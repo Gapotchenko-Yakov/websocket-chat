@@ -2,110 +2,77 @@ const http = require("http");
 const WebSocket = require("ws");
 const jwt = require("jsonwebtoken");
 const url = require("url");
+const express = require("express");
 
 const PORT = 8080;
 const SECRET_KEY = "secret_key";
+const users = {
+  user: "1234",
+};
 
-const server = http.createServer((req, res) => {
-  // Устанавливаем заголовки CORS
-  res.setHeader("Access-Control-Allow-Origin", "*"); // Разрешаем все источники, замените '*' на нужный домен при необходимости
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, DELETE, OPTIONS"
-  ); // Разрешаем указанные методы
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization"); // Разрешаем указанные заголовки
+const app = express();
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
 
-  // Обработка preflight-запросов (OPTIONS)
-  if (req.method === "OPTIONS") {
-    res.writeHead(204); // No Content
-    res.end();
-    return;
-  }
+const generateToken = (username) => {
+  return jwt.sign({ username }, SECRET_KEY, { expiresIn: "1h" });
+};
 
-  // Логика для обработки других запросов
-  else if (req.method === "POST" && req.url === "/login") {
-    let body = "";
+app.post("/login", (req, res) => {
+  const { username, password } = req.body;
 
-    req.on("data", (chunk) => {
-      body += chunk.toString();
-    });
-
-    req.on("end", () => {
-      try {
-        const { username, password } = JSON.parse(body);
-
-        if (username === "user" && password === "1234") {
-          const token = jwt.sign({ username }, SECRET_KEY, { expiresIn: "1h" });
-          res.writeHead(200, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ token }));
-        } else {
-          res.writeHead(401, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Invalid credentials" }));
-        }
-      } catch (err) {
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Invalid request" }));
-      }
-    });
+  if (users[username] === password) {
+    const token = generateToken(username);
+    res.status(200).json({ token });
   } else {
-    res.writeHead(404, { "Content-Type": "text/plain" });
-    res.end("Not Found");
+    res.status(401).json({ error: "Invalid credentials" });
   }
 });
 
-const wss = new WebSocket.Server({ noServer: true });
-
 wss.on("connection", (ws) => {
-  ws.on("message", (message) => {
-    try {
-      const parsedMessage = JSON.parse(message);
-      if (parsedMessage.type === "auth") {
-        const token = parsedMessage.token;
+  let userToken = null;
 
-        jwt.verify(token, SECRET_KEY, (err, decoded) => {
-          if (err) {
-            ws.send(
-              JSON.stringify({ type: "error", message: "Invalid token" })
-            );
-            ws.close();
-          } else {
-            ws.isAuthenticated = true;
-            ws.send(
-              JSON.stringify({ type: "success", message: "Authenticated" })
-            );
-          }
-        });
-      } else if (ws.isAuthenticated) {
+  ws.on("message", (message) => {
+    if (typeof message === "string") {
+      const data = JSON.parse(message);
+      if (data.type === "auth") {
+        try {
+          const decoded = jwt.verify(data.token, SECRET_KEY);
+          userToken = data.token;
+          ws.send("Authenticated");
+        } catch (err) {
+          ws.send("Authentication failed");
+        }
+      } else if (userToken) {
         wss.clients.forEach((client) => {
-          if (client !== ws && client.readyState === WebSocket.OPEN) {
-            client.send(
-              JSON.stringify({
-                type: "message",
-                content: parsedMessage.content,
-              })
-            );
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(message);
           }
         });
-      } else {
-        ws.send(JSON.stringify({ type: "error", message: "Unauthorized" }));
       }
-    } catch (error) {
-      console.error("Error processing message:", error);
     }
+  });
+
+  ws.on("close", () => {
+    console.log("WebSocket connection closed");
+  });
+
+  ws.on("error", (error) => {
+    console.error("WebSocket error:", error);
   });
 });
 
-server.on("upgrade", (request, socket, head) => {
-  const pathname = url.parse(request.url).pathname;
+// server.on("upgrade", (request, socket, head) => {
+//   const pathname = url.parse(request.url).pathname;
 
-  if (pathname === "/chat") {
-    wss.handleUpgrade(request, socket, head, (ws) => {
-      wss.emit("connection", ws, request);
-    });
-  } else {
-    socket.destroy();
-  }
-});
+//   if (pathname === "/chat") {
+//     wss.handleUpgrade(request, socket, head, (ws) => {
+//       wss.emit("connection", ws, request);
+//     });
+//   } else {
+//     socket.destroy();
+//   }
+// });
 
 server.listen(PORT, () => {
   console.log(`Server is running on PORT: ${PORT}`);
