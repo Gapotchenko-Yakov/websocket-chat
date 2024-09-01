@@ -50,4 +50,16 @@ wss.on("connection", (ws, req) => {
   ws.send("Welcome to the chat!");
 });
 
+server.on("upgrade", (request, socket, head) => {
+  const pathname = url.parse(request.url).pathname;
+
+  if (pathname === "/chat") {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit("connection", ws, request);
+    });
+  } else {
+    socket.destroy(); // Закрываем соединение, если путь не соответствует
+  }
+});
+
 server.listen(PORT, () => console.log(`Server is listening on PORT: ${PORT}`));
